@@ -1,0 +1,19 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+backend/temp/
+.gemini/
+.agents/
+.idea/
+.vscode/
+scratch/
+comparison.png
+flow_*.png
+pelmen_*.png
+two_olegs_*.png
+*.log
+
+# Exclude large demo folders from git push to avoid HF 10MB limits
+Examples/
+GeminiWatermarkTool/

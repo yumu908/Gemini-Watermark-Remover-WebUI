@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 水印消除工具</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <!-- Modern Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    
+    <div class="app-container">
+        <header>
+            <div class="brand-badge">
+                <i data-lucide="sparkles" class="badge-icon"></i> OpenCV 与 AI 引擎
+            </div>
+            <h1 id="main-title" class="tracking-tight">GEMINI 水印消除</h1>
+            <p class="subtitle">无痕去除水印与各种遮挡对象</p>
+        </header>
+
+        <!-- Premium Segmented Tab Control -->
+        <div class="tabs-container">
+            <nav class="tabs-nav">
+                <div class="tab-slider" id="tab-indicator"></div>
+                <button id="tab-image-btn" class="tab-btn active" onclick="switchTab('image')">
+                    <i data-lucide="image" class="tab-icon"></i> 图片
+                </button>
+                <button id="tab-video-btn" class="tab-btn" onclick="switchTab('video')">
+                    <i data-lucide="video" class="tab-icon"></i> 视频
+                </button>
+            </nav>
+        </div>
+
+        <main class="card glass">
+            <!-- IMAGE TAB PANEL -->
+            <div id="image-panel" class="tab-panel active">
+                <div class="upload-section" id="image-dropzone">
+                    <input type="file" id="image-input" accept=".png,.jpg,.jpeg,.webp" style="display: none;">
+                    <div class="upload-prompt" onclick="document.getElementById('image-input').click()">
+                        <div class="upload-icon-container">
+                            <i data-lucide="upload-cloud" class="upload-cloud-icon"></i>
+                        </div>
+                        <p class="upload-text">拖拽图片到此处，或点击选择</p>
+                        <span class="upload-hint">支持 PNG、JPG、WebP 格式</span>
+                    </div>
+                </div>
+
+                <div class="editor-section" id="image-editor" style="display: none;">
+                    <div class="workspace">
+                        <div class="canvas-workspace-wrapper">
+                            <div class="canvas-toolbar">
+                                <button class="tool-btn toolbar-back-btn" onclick="goBackToUpload()" title="返回上传">
+                                    <i data-lucide="arrow-left" class="tool-icon"></i>
+                                    <span>返回</span>
+                                </button>
+                                <div class="toolbar-divider"></div>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn active" id="tool-brush-btn" onclick="setImageTool('brush')" title="画笔涂抹">
+                                        <i data-lucide="brush" class="tool-icon"></i>
+                                        <span>画笔</span>
+                                    </button>
+                                    <button class="tool-btn" id="tool-rect-btn" onclick="setImageTool('rect')" title="框选区域">
+                                        <i data-lucide="square" class="tool-icon"></i>
+                                        <span>框选</span>
+                                    </button>
+                                    <button class="tool-btn" id="tool-pan-btn" onclick="setImageTool('pan')" title="拖拽移动">
+                                        <i data-lucide="hand" class="tool-icon"></i>
+                                        <span>拖拽</span>
+                                    </button>
+                                </div>
+                                <div class="toolbar-divider"></div>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn" onclick="undoImageStroke()" id="image-undo-btn" disabled title="撤销上一步">
+                                        <i data-lucide="undo-2" class="tool-icon"></i>
+                                        <span>撤销</span>
+                                    </button>
+                                </div>
+                                <div class="toolbar-divider"></div>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn" onclick="zoomImage(0.8)" title="缩小">
+                                        <i data-lucide="zoom-out" class="tool-icon"></i>
+                                    </button>
+                                    <span class="zoom-value" id="image-zoom-val">100%</span>
+                                    <button class="tool-btn" onclick="zoomImage(1.2)" title="放大">
+                                        <i data-lucide="zoom-in" class="tool-icon"></i>
+                                    </button>
+                                    <button class="tool-btn" onclick="resetZoomImage()" title="重置缩放">
+                                        <i data-lucide="maximize" class="tool-icon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="canvas-scroll-container" id="image-scroll-container">
+                                <div class="scroll-area" id="image-scroll-area">
+                                    <div class="zoom-wrapper" id="image-zoom-wrapper">
+                                        <canvas id="editor-canvas"></canvas>
+                                        <div id="image-selection-overlay" class="selection-overlay">
+                                            <div class="selection-corner top-left"></div>
+                                            <div class="selection-corner top-right"></div>
+                                            <div class="selection-corner bottom-left"></div>
+                                            <div class="selection-corner bottom-right"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="controls-sidebar">
+                            <div class="sidebar-header">
+                                <i data-lucide="sliders" class="sidebar-icon"></i>
+                                <h3>工具选项</h3>
+                            </div>
+                            
+                            <div class="control-group" id="brush-size-control-group">
+                                <label for="brush-size">
+                                    <span>画笔大小</span>
+                                    <span id="brush-size-val" class="value-badge">15px</span>
+                                </label>
+                                <input type="range" id="brush-size" min="5" max="80" value="15" oninput="updateBrushSize(this.value)">
+                            </div>
+                            
+                            <div class="btn-actions">
+                                <button class="btn btn-secondary flex-center" onclick="clearImageMask()">
+                                    <i data-lucide="trash-2" class="btn-icon"></i> 清除遮罩
+                                </button>
+                                <button class="btn btn-accent flex-center" id="gemini-img-preset-btn">
+                                    <i data-lucide="sparkles" class="btn-icon"></i> Gemini 水印预设
+                                </button>
+                                <button class="btn btn-secondary flex-center" onclick="document.getElementById('image-input').click()">
+                                    <i data-lucide="upload" class="btn-icon"></i> 更换图片
+                                </button>
+                            </div>
+                            
+                            <hr class="separator">
+                            
+                            <button class="btn btn-primary btn-large flex-center" id="process-image-btn" onclick="processImage()">
+                                <i data-lucide="zap" class="btn-icon-pulsing"></i> 抹除水印
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison / Result Section -->
+                <div class="result-section" id="image-result-container" style="display: none;">
+                    <div class="result-header">
+                        <i data-lucide="check-circle-2" class="success-icon"></i>
+                        <h2>处理结果</h2>
+                    </div>
+                    
+                    <div class="comparison-container">
+                        <div class="img-compare-wrapper">
+                            <img id="image-result-before" src="" alt="处理前">
+                            <div class="resize-handle" id="image-result-after-wrapper">
+                                <img id="image-result-after" src="" alt="处理后">
+                            </div>
+                            <div class="slider-divider" id="image-slider-divider">
+                                <div class="slider-button">
+                                    <i data-lucide="arrow-left-right" class="slider-arrow-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-actions">
+                        <button class="btn btn-secondary flex-center" onclick="resetImageEditor()">
+                            <i data-lucide="edit" class="btn-icon"></i> 重新开始
+                        </button>
+                        <button class="btn btn-secondary flex-center" onclick="document.getElementById('image-input').click()">
+                            <i data-lucide="upload" class="btn-icon"></i> 上传新文件
+                        </button>
+                        <a id="download-image-btn" class="btn btn-success flex-center" download="no_watermark.png">
+                            <i data-lucide="download" class="btn-icon"></i> 下载结果
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIDEO TAB PANEL -->
+            <div id="video-panel" class="tab-panel">
+                <div class="upload-section" id="video-dropzone">
+                    <input type="file" id="video-input" accept=".mp4,.webm,.mov,.avi,.mkv" style="display: none;">
+                    <div class="upload-prompt" onclick="document.getElementById('video-input').click()">
+                        <div class="upload-icon-container">
+                            <i data-lucide="video" class="upload-cloud-icon"></i>
+                        </div>
+                        <p class="upload-text">拖拽视频到此处，或点击选择</p>
+                        <span class="upload-hint">支持 MP4、WebM、MOV 格式</span>
+                    </div>
+                </div>
+
+                <div class="editor-section" id="video-editor" style="display: none;">
+                    <div class="workspace">
+                        <div class="canvas-workspace-wrapper">
+                            <div class="canvas-toolbar">
+                                <button class="tool-btn toolbar-back-btn" onclick="goBackToVideoUpload()" title="返回上传">
+                                    <i data-lucide="arrow-left" class="tool-icon"></i>
+                                    <span>返回</span>
+                                </button>
+                                <div class="toolbar-divider"></div>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn active" id="video-tool-rect-btn" onclick="setVideoTool('rect')" title="框选区域">
+                                        <i data-lucide="square" class="tool-icon"></i>
+                                        <span>框选</span>
+                                    </button>
+                                    <button class="tool-btn" id="video-tool-pan-btn" onclick="setVideoTool('pan')" title="拖拽移动">
+                                        <i data-lucide="hand" class="tool-icon"></i>
+                                        <span>拖拽</span>
+                                    </button>
+                                </div>
+                                <div class="toolbar-divider"></div>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn" onclick="zoomVideo(0.8)" title="缩小">
+                                        <i data-lucide="zoom-out" class="tool-icon"></i>
+                                    </button>
+                                    <span class="zoom-value" id="video-zoom-val">100%</span>
+                                    <button class="tool-btn" onclick="zoomVideo(1.2)" title="放大">
+                                        <i data-lucide="zoom-in" class="tool-icon"></i>
+                                    </button>
+                                    <button class="tool-btn" onclick="resetZoomVideo()" title="重置缩放">
+                                        <i data-lucide="maximize" class="tool-icon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="canvas-scroll-container" id="video-scroll-container">
+                                <div class="scroll-area" id="video-scroll-area">
+                                    <div class="zoom-wrapper" id="video-zoom-wrapper">
+                                        <video id="editor-video" muted></video>
+                                        <div id="video-overlays-container"></div>
+                                        <div id="video-selection-overlay" class="selection-overlay">
+                                            <div class="selection-corner top-left"></div>
+                                            <div class="selection-corner top-right"></div>
+                                            <div class="selection-corner bottom-left"></div>
+                                            <div class="selection-corner bottom-right"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- External Video Controls Bar (Below video frame, unobscured) -->
+                            <div class="video-player-controls" id="editor-video-controls">
+                                <button class="video-control-btn" id="video-play-btn" onclick="toggleVideoPlay()" title="播放/暂停">
+                                    <i data-lucide="play" id="video-play-icon"></i>
+                                </button>
+                                <span class="video-time-text" id="video-time-current">0:00</span>
+                                <input type="range" class="video-timeline-slider" id="video-timeline" min="0" max="100" value="0" step="0.1" oninput="seekVideo(this.value)">
+                                <span class="video-time-text" id="video-time-duration">0:00</span>
+                                <button class="video-control-btn" id="video-mute-btn" onclick="toggleVideoMute()" title="静音/取消静音">
+                                    <i data-lucide="volume-x" id="video-mute-icon"></i>
+                                </button>
+                            </div>
+
+                            <!-- Video Box Timeline Tracks Section (剪辑轨道式时间轴控制) -->
+                            <div id="video-tracks-section" class="video-tracks-section" style="display: none;">
+                                <div class="tracks-header">
+                                    <div class="tracks-title">
+                                        <i data-lucide="film"></i>
+                                        <span>选框时间轨道（时间轴控制）</span>
+                                    </div>
+                                    <span class="tracks-hint">支持对每个框选配置起止时间，非水印时间段跳过计算</span>
+                                </div>
+                                <div id="video-tracks-list" class="tracks-list">
+                                    <!-- Dynamic timeline tracks generated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="controls-sidebar">
+                            <div class="sidebar-header">
+                                <i data-lucide="info" class="sidebar-icon"></i>
+                                <h3>区域选择</h3>
+                            </div>
+                            <p class="sidebar-info">请选择“框选”工具，并在视频上画框选中需要消除的水印区域。</p>
+                            
+                            <div class="btn-actions">
+                                <button class="btn btn-secondary flex-center" onclick="clearVideoSelection()">
+                                    <i data-lucide="trash-2" class="btn-icon"></i> 重置选框
+                                </button>
+                                <button class="btn btn-accent flex-center" id="gemini-video-preset-btn">
+                                    <i data-lucide="sparkles" class="btn-icon"></i> Gemini 水印预设
+                                </button>
+                                <button class="btn btn-secondary flex-center" onclick="document.getElementById('video-input').click()">
+                                    <i data-lucide="upload" class="btn-icon"></i> 更换视频
+                                </button>
+                            </div>
+                            
+                            <div class="selection-stats" id="video-coords-info">
+                                <div class="coords-label"><i data-lucide="crosshair" class="stats-icon"></i> 选框坐标:</div>
+                                <div id="val-coords">未选择</div>
+                            </div>
+                            
+                            <hr class="separator">
+                            
+                            <div class="control-group">
+                                <label>
+                                    <span>消除模式</span>
+                                </label>
+                                <div class="mode-select-container">
+                                    <button id="video-mode-fast-btn" class="mode-btn active" onclick="setVideoMode('fast')">
+                                        <i data-lucide="zap" class="mode-icon"></i> 极速模式 (1秒极速)
+                                    </button>
+                                    <button id="video-mode-ai-btn" class="mode-btn" onclick="setVideoMode('ai')">
+                                        <i data-lucide="cpu" class="mode-icon"></i> AI 逐帧模式 (CPU较慢)
+                                    </button>
+                                </div>
+                                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; line-height: 1.3;">💡 提示：视频去水印推荐使用<b>极速模式</b>，1~2 秒即可完成；AI 模式对 CPU 计算要求极高。</p>
+                            </div>
+                            
+                            <hr class="separator">
+                            
+                            <button class="btn btn-primary btn-large flex-center" id="process-video-btn" onclick="processVideo()">
+                                <i data-lucide="zap" class="btn-icon-pulsing"></i> 抹除水印
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Result Section -->
+                <div class="result-section" id="video-result-container" style="display: none;">
+                    <div class="result-header">
+                        <i data-lucide="check-circle-2" class="success-icon"></i>
+                        <h2>处理结果</h2>
+                    </div>
+                    
+                    <div class="video-compare-wrapper">
+                        <div class="video-column">
+                            <h4><i data-lucide="video" class="column-icon"></i> 原视频</h4>
+                            <video id="video-result-before-player" controls muted></video>
+                        </div>
+                        <div class="video-column">
+                            <h4><i data-lucide="video-off" class="column-icon"></i> 去水印后</h4>
+                            <video id="video-result-after-player" controls></video>
+                        </div>
+                    </div>
+                    
+                    <div class="result-actions">
+                        <button class="btn btn-secondary flex-center" onclick="resetVideoEditor()">
+                            <i data-lucide="edit" class="btn-icon"></i> 重新开始
+                        </button>
+                        <button class="btn btn-secondary flex-center" onclick="document.getElementById('video-input').click()">
+                            <i data-lucide="upload" class="btn-icon"></i> 上传新视频
+                        </button>
+                        <a id="download-video-btn" class="btn btn-success flex-center" download="cleaned_video.mp4">
+                            <i data-lucide="download" class="btn-icon"></i> 下载视频
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast flex-center"></div>
+
+        <!-- Global Loader -->
+        <div id="loader" class="loader-overlay" style="display: none;">
+            <div class="loader-container">
+                <div class="loader-spinner-ring">
+                    <div class="loader-circle"></div>
+                </div>
+                <p id="loader-text">正在处理文件...</p>
+                <span class="loader-subtext">请稍候</span>
+            </div>
+        </div>
+        
+        <footer class="app-footer">
+            <div class="footer-content">
+                <span class="footer-label">支持与联系:</span>
+                <a href="https://t.me/socialmediamisha" target="_blank" class="footer-link">
+                    <i data-lucide="send" class="footer-icon"></i> Telegram
+                </a>
+                <span class="footer-dot">•</span>
+                <a href="mailto:mykhailo.radzik@gmail.com" class="footer-link">
+                    <i data-lucide="mail" class="footer-icon"></i> mykhailo.radzik@gmail.com
+                </a>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
